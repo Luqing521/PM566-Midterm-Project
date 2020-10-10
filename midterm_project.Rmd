@@ -6,17 +6,19 @@ output: github_document
 always_allow_html: true
 editor_options: 
   chunk_output_type: console
+
 ---
 ```{r setup, include=FALSE}
 knitr::opts_chunk$set(echo = TRUE)
 ```
 
-This data set includes indicators which reflect environmental conditions or a population’s vulnerability to environmental pollutants of all communities in California State.
+## Introduction: 
+Cardiovascular disease (CVD) is a leading cause of death both in California and the United States.There are many risk factors for developing CVD including diet, lack of exercise, smoking, and air pollution.This data includes indicators which reflect environmental conditions or a population’s vulnerability to environmental pollutants of all communities in California State.
+The main purpose of this project is to analyze whether air pollution associated with CVD rate in counties of California state and the pollution particle effect to CVD rate. Is CVD rate associated with communities category.
 
-Cardiovascular disease (CVD) is a leading cause of death both in California and the United States.There are many risk factors for developing CVD including diet, lack of exercise, smoking, and air pollution.
-
-Hypotheses: Is air pollution associated with cardiovascular disease. Is CVD associated with communities category.
-
+## Methods:
+The data was downloaded from https://data.ca.gov/dataset/calenviroscreen-3-0-results. through API and formed into a data table.The key variables are extracted and formed into a new data frame. 
+ 
 
 ```{r, eval = TRUE} 
 # load the data set by API
@@ -32,8 +34,10 @@ ces <- as.data.table(lapply(ces, unlist))
 ces <- as.data.table(lapply(ces,function(x) type.convert(as.character(x), as.is = TRUE)))
 ```
 
+
+## Create a new data set including key variables and check the data
 ```{r, eval = TRUE}
-#create a new data set including key variables
+## create a new data set including key variables
 library(tidyverse)
 ces_2 <-
   ces %>% 
@@ -56,14 +60,12 @@ colnames(ces_2)[which(colnames(ces_2)=="Tox. Release")]<- "tox"
 colnames(ces_2)[which(colnames(ces_2)=="Low Birth Weight")]<- "LBW"
 # check the data
 dim(ces_2)
-# summary statistics
-ces_2 %>% 
-  skimr:: skim() 
 ```
+- After briefly check the data by skim(), most of the variables are complete and the missing data is less than 5%, which is not a huge amount. 
 
-- After briefly check the data, most of the variables are complete and the missing data is less than 5%, which is not a huge amount. 
-- Rename the column names for further analysis.
 
+
+## Examine the relationship between CVD rate and community category
 ```{r, eval = TRUE}
 # get the average of each exposure indicator:
 library(data.table)
@@ -78,24 +80,27 @@ table1 <-
 ces_2 %>% 
   summarise(county,cardio_mean,community_cat) %>% 
   arrange(desc(cardio_mean))
- head(as.data.table(table1)[,.SD[1],by="county"], 20)
- 
+
+head(as.data.table(table1)[,.SD[1],by="county"], 10) %>% 
+    knitr::kable(align = "lccrr")
+              
 # cardiovascular disease occurrence by community category
 ces_2 %>%  
   ggplot(mapping= aes(x = as.factor(community_cat), y= cardio,fill = community_cat))+
   geom_boxplot()+
-labs(x=("community category"),title = ("cardiovascular disease occurrence"))
+labs(x=("community category"),title = ("Figure1.cardiovascular disease occurrence"))
 ```
 
+- In the top 20 CVD rate counties, more than half of those belongs to disadvantageous communities.The boxplot shows that disadvantageous communities have relatively higher average of CVD rate than those not.  
 
--Describe: In the top 20 CVD rate counties, more than half of those belongs to disadvantageous communities.The boxplot shows that disadvantageous communities have relatively higher average of CVD rate than those not.  
 
+## Examine the pollution exposure by community category
 ```{r, eval = TRUE}
 # pollution exposure by community category
 to_map <- ces_2 %>% 
   select(cardio_mean, county, PM2.5_mean, ozone_mean,Traffic_mean,community_cat)
 
-#select unique county and cadio_mean.
+#select unique county and cardio_mean.
 to_map<-as.data.table(to_map)[, .SD[1], by="county"]
 
 g1<-to_map %>%  
@@ -103,32 +108,35 @@ filter(!(PM2.5_mean %in% NA)) %>%
   ggplot(mapping= aes(x= PM2.5_mean, y = cardio_mean, color = community_cat))+
   geom_point()+ 
   geom_smooth(method = "lm",size=0.5, se=FALSE)+
-labs(x=("PM2.5"),y=("cardio"),title = ("PM2.5 and CVD by community category "))
+labs(x=("PM2.5"),y=("cardio"),title = ("PM2.5 and CVD"))
 
 g2<-to_map %>%  
 filter(!(ozone_mean %in% NA)) %>% 
   ggplot(mapping= aes(x = ozone_mean, y = cardio_mean, color = community_cat))+
   geom_point()+ 
   geom_smooth(method = "lm",size=0.5,se=FALSE)+
-  labs(x=("ozone"),y=("cardio"),title = ("Ozone and CVD by community category"))
+  labs(x=("ozone"),y=("cardio"),title = ("Ozone and CVD"))
 
 g3<-to_map %>%  
 filter(!(Traffic_mean %in% NA)) %>% 
   ggplot(mapping= aes(x = Traffic_mean, y= cardio_mean, color = community_cat))+
   geom_point()+ 
   geom_smooth(method = "lm",size=0.5,se=FALSE)+
-  labs(x=("traffic density"),y=("cardio"),title = ("traffic density and CVD by community category"))
+  labs(x=("traffic density"),y=("cardio"),title = ("traffic density and CVD"))
 
 #combine four graphs 
 library(ggpubr)
 figure <- ggarrange(g1, g2, g3,
                   labels = c("A", "B", "C"),
                   ncol = 2, nrow = 2)
-figure
+annotate_figure(figure, top = text_grob("Figure2.pollution exposure by community category "))
 ```
 
--From the matrix graphs, disadvantageous communities have relatively higher PM2.5 and Ozone pollution exposure and traffic density. Both PM2.5 and ozone are positively corelated with CVD rate in disadvantageous communities. In all communities, traffic density is negatively related with CVD rate.
+- From the matrix graphs, disadvantageous communities have relatively higher PM2.5 and Ozone pollution exposure and traffic density. Both PM2.5 and ozone are positively corelated with CVD rate in disadvantageous communities. In all communities, traffic density is negatively related with CVD rate.
 
+
+
+## Visualize the polution burden and CVD rate in state map  
 ```{r, eval = TRUE}
 # create a new variable for pollution burden score.Pollution Burden is calculated as the average of pollution exposures percentile (Ozone_Pct,PM2.5_Pct,Traffic_Pct,tox_Pct), and scaled by the statewide maximum average percentile. 
 
@@ -179,38 +187,42 @@ g5<- new_data%>%
   labs(title=("Cardiovascular disease rate"),
        fill = "CVD rate")
 
-ggarrange(g5, g6,
+map<-ggarrange(g5, g6,
           labels = c("A", "B"),
           ncol = 2, nrow = 2)
+annotate_figure(map, top = text_grob("Figure3. pollution exposure by community category "))         
 ```
 
--An area with a high pollution score is the one that experiences higher pollution burden than areas with low scores. From the state map, we can see Madera, Fresno, Los Angeles, San Joaquin,San Bernadino and Riverside show higher pollution score, this is in consistent with a higher CVD rate in those counties. However, the pollution is not a sufficient cause of CVD rate, because some communities with lower pollution score have higher CVD rate.
+- An area with a high pollution score is the one that experiences higher pollution burden than areas with low scores. From the state map, we can see Madera, Fresno, Los Angeles, San Joaquin,San Bernadino and Riverside show higher pollution score, this is in consistent with a higher CVD rate in those counties. However, the pollution is not a sufficient cause of CVD rate, because some communities with lower pollution score have higher CVD rate.
 
+
+## The association between pollution burden score and CVD rate
 ```{r, eval = TRUE}
-# what is the association between pollution burden score and CVD rate?
 table2 <-
 ces_2 %>% 
   summarise(county,pol_score1,cardio_mean) %>% 
   arrange(desc(pol_score1))
- head(as.data.table(table2)[,.SD[1],by="county"], 20)
+ head(as.data.table(table2)[,.SD[1],by="county"], 10) %>% 
+   knitr::kable(align = "lccrr")
  
  ces_2%>% 
   filter(!pol_score1 %in% NA) %>% 
   ggplot(mapping = aes(x = score_mean, y = cardio_mean))+
   geom_point(aes(color = "red"))+
   geom_smooth(method = "lm",color = "black",size=0.5)+
-  labs(x=("pollution score"),y=("cardio"),title = ("pollution score and CVD rate by community category"))
- 
-lm(cardio~pol_score1, data=ces_2) %>% 
-  summary()
+  labs(x=("pollution score"),y=("cardio"),title = ("Figure4. pollution score and CVD rate by community category"))
 ```
 
-summary:
---The data indicates that air pollution is correlated with CVD occurrence rate, and disadvantageous communities have a relatively higher CVD rate. 
---PM2.5 and Ozone is correlated with CVD rate. Higher PM2.5 and Ozone correspondent to higher CVD rate.
---A higher pollution score indicates that the place experiences higher pollution burden. In top 20 high score counties, more than half of them are disadvantageous communities.
---Pollution exposure is not the sufficient cause of CVD rate. Some communities with lower pollution score have a relative higher CVD rate.
---Some socioeconomic indicators can be used for further analysis.
+-From this graph, pollution burden is positively related with CVD rate. The more pollution exposure associate with higher rate of CVD occurrence.
+
+
+
+## Conclusion:
+- The data indicates that air pollution is positively correlated with CVD occurrence rate, and disadvantageous communities have a relatively higher CVD rate. 
+- PM2.5 and Ozone is correlated with CVD rate. Higher PM2.5 and Ozone correspondent to higher CVD rate.
+- A higher pollution score indicates that the place experiences higher pollution burden. In top 20 high score counties, more than half of them are disadvantageous communities.
+- Pollution exposure is not the sufficient cause of CVD rate. Some communities with lower pollution score have a relative higher CVD rate.
+- Some socioeconomic indicators can be used for further analysis.
 
 
 
