@@ -2,10 +2,7 @@
 title: "midterm-project"
 author: "Luqing Ren"
 date: "10/4/2020"
-output: github_document
-always_allow_html: true
-editor_options: 
-  chunk_output_type: console
+output: html_document
 
 ---
 ```{r setup, include=FALSE}
@@ -17,10 +14,9 @@ Cardiovascular disease (CVD) is a leading cause of death both in California and 
 The main purpose of this project is to analyze whether air pollution associated with CVD rate in counties of California state and the pollution particle effect to CVD rate. Is CVD rate associated with communities category.
 
 ## Methods:
-The data was downloaded from https://data.ca.gov/dataset/calenviroscreen-3-0-results. through API and formed into a data table.The key variables are extracted and formed into a new data frame. 
+The data was downloaded from https://data.ca.gov/dataset/calenviroscreen-3-0-results. through API and formed into a data table.The key variables are extracted and formed into a new data frame.The data table includes several air pollution types,cardiovascular disease rate and socioeconomic indicators. 
  
-
-```{r, eval = TRUE} 
+```{r,eval = TRUE} 
 # load the data set by API
 library(httr)
 library(data.table)
@@ -36,28 +32,20 @@ ces <- as.data.table(lapply(ces,function(x) type.convert(as.character(x), as.is 
 
 
 ## Create a new data set including key variables and check the data
-```{r, eval = TRUE}
+```{r,eval = TRUE}
 ## create a new data set including key variables
 library(tidyverse)
 ces_2 <-
   ces %>% 
   select(`Census Tract`, ZIP, `California County`,Latitude, Longitude,
          `SB 535 Disadvantaged Community`,Ozone,`Ozone Pctl`,
-         PM2.5, `PM2.5 Pctl`,Traffic,`Traffic Pctl`,`Tox. Release`, 
-         `Tox. Release Pctl`,Asthma,`Cardiovascular Disease`,`Low Birth Weight`,
+         PM2.5, `PM2.5 Pctl`,Traffic,`Traffic Pctl`, `Cardiovascular Disease`,
          Education, Poverty) %>% 
   as.data.table()
 #rename column 
-colnames(ces_2)[which(colnames(ces_2)=="Cardiovascular Disease")]<- "cardio"
-colnames(ces_2)[which(colnames(ces_2)=="Census Tract")]<- "census_trct"
-colnames(ces_2)[which(colnames(ces_2)=="California County")]<- "county"
-colnames(ces_2)[which(colnames(ces_2)=="SB 535 Disadvantaged Community")]<- "community_cat"
-colnames(ces_2)[which(colnames(ces_2)=="Ozone Pctl")]<- "ozone_pct"
-colnames(ces_2)[which(colnames(ces_2)=="PM2.5 Pctl")]<- "PM2.5_pct"
-colnames(ces_2)[which(colnames(ces_2)=="Traffic Pctl")]<- "traffic_pct"
-colnames(ces_2)[which(colnames(ces_2)=="Tox. Release Pctl")]<- "tox_pct"
-colnames(ces_2)[which(colnames(ces_2)=="Tox. Release")]<- "tox"
-colnames(ces_2)[which(colnames(ces_2)=="Low Birth Weight")]<- "LBW"
+colnames(ces_2) = c("census_trct","ZIP","county","latitude","longitude","community_cat",
+                    "ozone","ozone_pct","PM2.5","PM2.5_pct","traffic","traffic_pct",
+                    "cardio","education","poverty")
 # check the data
 dim(ces_2)
 ```
@@ -66,13 +54,13 @@ dim(ces_2)
 
 
 ## Examine the relationship between CVD rate and community category
-```{r, eval = TRUE}
+```{r,eval = TRUE}
 # get the average of each exposure indicator:
 library(data.table)
+library(htmlTable)
 ces_2[, PM2.5_mean := mean(PM2.5, na.rm = TRUE), by = county]
-ces_2[, ozone_mean := mean(Ozone, na.rm = TRUE), by = county]
-ces_2[, Traffic_mean := mean(Traffic, na.rm = TRUE), by = county]
-ces_2[, tox_mean := mean(tox, na.rm = TRUE), by = county]
+ces_2[, ozone_mean := mean(ozone, na.rm = TRUE), by = county]
+ces_2[, traffic_mean := mean(traffic, na.rm = TRUE), by = county]
 ces_2[, cardio_mean := mean(cardio, na.rm = TRUE), by = county]
 
 # make a table of top 10 counties with CVD rate and community category
@@ -80,13 +68,14 @@ table1 <-
 ces_2 %>% 
   summarise(county,cardio_mean,community_cat) %>% 
   arrange(desc(cardio_mean))
+table1<-head(as.data.table(table1)[,.SD[1],by="county"], 10)  
+    
+htmlTable(table1,header = c("county","CVD rate","community category"),
+          caption = "Table1: The top 10 counties with CVD rate and their comunity category")
 
-head(as.data.table(table1)[,.SD[1],by="county"], 10) %>% 
-    knitr::kable(align = "lccrr")
-              
 # cardiovascular disease occurrence by community category
 ces_2 %>%  
-  ggplot(mapping= aes(x = as.factor(community_cat), y= cardio,fill = community_cat))+
+  ggplot(mapping= aes(x = as.factor(community_cat), y= cardio))+
   geom_boxplot()+
 labs(x=("community category"),title = ("Figure1.cardiovascular disease occurrence"))
 ```
@@ -95,34 +84,34 @@ labs(x=("community category"),title = ("Figure1.cardiovascular disease occurrenc
 
 
 ## Examine the pollution exposure by community category
-```{r, eval = TRUE}
+```{r,eval = TRUE}
 # pollution exposure by community category
 to_map <- ces_2 %>% 
-  select(cardio_mean, county, PM2.5_mean, ozone_mean,Traffic_mean,community_cat)
+  select(cardio_mean, county, PM2.5_mean, ozone_mean,traffic_mean,community_cat)
 
 #select unique county and cardio_mean.
 to_map<-as.data.table(to_map)[, .SD[1], by="county"]
 
 g1<-to_map %>%  
 filter(!(PM2.5_mean %in% NA)) %>% 
-  ggplot(mapping= aes(x= PM2.5_mean, y = cardio_mean, color = community_cat))+
+  ggplot(mapping= aes(x= PM2.5_mean, y = cardio_mean))+
   geom_point()+ 
   geom_smooth(method = "lm",size=0.5, se=FALSE)+
-labs(x=("PM2.5"),y=("cardio"),title = ("PM2.5 and CVD"))
+labs(x=("PM2.5"),y=("cardio"),title = ("PM2.5 and CVD rate"))
 
 g2<-to_map %>%  
 filter(!(ozone_mean %in% NA)) %>% 
-  ggplot(mapping= aes(x = ozone_mean, y = cardio_mean, color = community_cat))+
+  ggplot(mapping= aes(x = ozone_mean, y = cardio_mean))+
   geom_point()+ 
   geom_smooth(method = "lm",size=0.5,se=FALSE)+
-  labs(x=("ozone"),y=("cardio"),title = ("Ozone and CVD"))
+  labs(x=("ozone"),y=("cardio"),title = ("ozone and CVD rate"))
 
 g3<-to_map %>%  
-filter(!(Traffic_mean %in% NA)) %>% 
-  ggplot(mapping= aes(x = Traffic_mean, y= cardio_mean, color = community_cat))+
+filter(!(traffic_mean %in% NA)) %>% 
+  ggplot(mapping= aes(x = traffic_mean, y= cardio_mean))+
   geom_point()+ 
   geom_smooth(method = "lm",size=0.5,se=FALSE)+
-  labs(x=("traffic density"),y=("cardio"),title = ("traffic density and CVD"))
+  labs(x=("traffic density"),y=("cardio"),title = ("traffic density and CVD rate"))
 
 #combine four graphs 
 library(ggpubr)
@@ -137,10 +126,10 @@ annotate_figure(figure, top = text_grob("Figure2.pollution exposure by community
 
 
 ## Visualize the polution burden and CVD rate in state map  
-```{r, eval = TRUE}
+```{r,eval = TRUE}
 # create a new variable for pollution burden score.Pollution Burden is calculated as the average of pollution exposures percentile (Ozone_Pct,PM2.5_Pct,Traffic_Pct,tox_Pct), and scaled by the statewide maximum average percentile. 
 
-ces_2[, pol_score := (ozone_pct+PM2.5_pct+traffic_pct+tox_pct)/4]
+ces_2[, pol_score := (ozone_pct+PM2.5_pct+traffic_pct)/3]
 ces_2[,pol_score1 := (pol_score*10)/max(ces_2$pol_score, na.rm = TRUE)]
 ces_2[, score_mean := mean(pol_score1, na.rm = TRUE), by = county]
 # make a state map of pollution burden score and CVD rate 
@@ -153,7 +142,7 @@ ces_2 <-ces_2 %>%
   mutate(county_name = paste(county_names, "County", sep = " "))
 #construct a new dataset that contains only cardio_mean and county_name
 to_map <- ces_2 %>% 
-  select(cardio_mean, county_name, pol_score,PM2.5_mean, ozone_mean,Traffic_mean)
+  select(cardio_mean, county_name, pol_score,PM2.5_mean, ozone_mean,traffic_mean)
 #select unique county and cadio_mean.
 to_map<-as.data.table(to_map)[, .SD[1], by="county_name"]
 #urbanmap data from library(urbnmapr)...
@@ -197,13 +186,15 @@ annotate_figure(map, top = text_grob("Figure3. pollution exposure by community c
 
 
 ## The association between pollution burden score and CVD rate
-```{r, eval = TRUE}
+```{r,eval = TRUE}
 table2 <-
 ces_2 %>% 
   summarise(county,pol_score1,cardio_mean) %>% 
   arrange(desc(pol_score1))
- head(as.data.table(table2)[,.SD[1],by="county"], 10) %>% 
-   knitr::kable(align = "lccrr")
+ table2 <-head(as.data.table(table2)[,.SD[1],by="county"], 10)
+ 
+ htmlTable(table1,header = c("county","pollution score","CVD rate"),
+          caption = "Table2: The top 10 counties with CVD rate and their pollution score")  
  
  ces_2%>% 
   filter(!pol_score1 %in% NA) %>% 
